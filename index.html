@@ -30,11 +30,11 @@
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .between{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-    .toolbar input,.toolbar select,.form input,.form textarea,.form select{
+    .toolbar input,.toolbar select,.form input,.form textarea,.form select,.gateCard input{
       width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:12px;color:var(--text);padding:12px
     }
     .statbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 14px 0}
-    .stat,.notice,.card,.event,.field{background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}
+    .stat,.notice,.card,.event,.field,.gateCard{background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}
     .stat{border-radius:14px;padding:10px;min-height:74px}
     .stat .label{font-size:11px;color:var(--muted);text-transform:uppercase}
     .stat .num{font-size:24px;font-weight:800;margin-top:4px}
@@ -74,7 +74,7 @@
     .event{border-radius:14px;padding:12px}
     .event .t{font-weight:800}
     .event .m{color:var(--muted);font-size:12px;margin-top:4px}
-    .hidden{display:none!important}
+    .hidden{display:none !important}
     .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:80;display:none;align-items:flex-end;justify-content:center;padding:0}
     .sheet{width:100%;max-width:860px;max-height:92vh;overflow:auto;background:var(--bg);border-top-left-radius:22px;border-top-right-radius:22px;border:1px solid var(--border);box-shadow:var(--shadow);padding:14px 14px calc(18px + env(safe-area-inset-bottom))}
     .sheetHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
@@ -89,6 +89,25 @@
     .dot{width:9px;height:9px;border-radius:999px;background:#4b5563}
     .dot.on{background:#16a34a}
     .dot.off{background:#dc2626}
+
+    .gate{
+      position:fixed; inset:0; z-index:9999;
+      display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(180deg, #0b0f14 0%, #0f1520 100%);
+      padding:20px;
+    }
+    .gateCard{
+      width:min(440px, 100%);
+      border-radius:20px;
+      padding:20px;
+    }
+    .gateTitle{font-size:28px;font-weight:900;margin:0 0 6px 0}
+    .gateSub{color:var(--muted);margin:0 0 16px 0}
+    .gateError{
+      color:#fecaca; background:#2b1215; border:1px solid #7f1d1d;
+      border-radius:12px; padding:10px 12px; margin-top:10px; display:none;
+    }
+
     @media (min-width:900px){
       body{padding-bottom:24px}
       .app{padding:0 12px}
@@ -106,7 +125,20 @@
   </style>
 </head>
 <body>
-<div class="app">
+
+<div id="gate" class="gate">
+  <div class="gateCard">
+    <p class="gateTitle">ShadowPoint</p>
+    <p class="gateSub">Enter password to open the app.</p>
+    <input id="gatePassword" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="row" style="margin-top:12px">
+      <button id="gateUnlockBtn" class="btn blue" type="button">Unlock</button>
+    </div>
+    <div id="gateError" class="gateError">Wrong password.</div>
+  </div>
+</div>
+
+<div id="appRoot" class="app hidden">
   <header class="topbar">
     <div class="between">
       <div>
@@ -166,9 +198,9 @@
   </section>
 </div>
 
-<button class="floating" id="newBtnMobile" type="button">＋</button>
+<button id="newBtnMobile" class="floating hidden" type="button">＋</button>
 
-<nav class="bottomnav">
+<nav id="bottomNav" class="bottomnav hidden">
   <div class="row">
     <div class="row">
       <span class="live"><span id="liveDotMobile" class="dot off"></span><span id="liveTextMobile">Realtime offline</span></span>
@@ -234,6 +266,14 @@
 </div>
 
 <script>
+/*
+  LIGHT PASSWORD GATE ONLY.
+  This is not real security because the password is inside the page code.
+  Good enough for tonight on GitHub Pages, not for long-term protection.
+*/
+const APP_PASSWORD = "Adalynn$23";
+const PASSWORD_STORAGE_KEY = "shadowpoint_gate_ok_v1";
+
 const SUPABASE_URL = "https://hulcxftmoazrvkjqqyuk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_yFa3GaBBsHYn-VfK8ivRJQ__vuu_q2T";
 const API_BASE = SUPABASE_URL + "/rest/v1";
@@ -250,6 +290,7 @@ let pollTimer = null;
 let pendingRefresh = false;
 let lastSyncLabel = "";
 const openCards = new Set();
+let appInitialized = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -260,6 +301,45 @@ function esc(v){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+function showApp(){
+  $("gate").classList.add("hidden");
+  $("appRoot").classList.remove("hidden");
+  $("newBtnMobile").classList.remove("hidden");
+  $("bottomNav").classList.remove("hidden");
+}
+
+function showGateError(msg){
+  const el = $("gateError");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearGateError(){
+  $("gateError").style.display = "none";
+}
+
+function unlockApp(){
+  const attempt = $("gatePassword").value;
+  if(attempt !== APP_PASSWORD){
+    showGateError("Wrong password.");
+    return;
+  }
+  sessionStorage.setItem(PASSWORD_STORAGE_KEY, "1");
+  clearGateError();
+  showApp();
+  if(!appInitialized) initApp();
+}
+
+function checkGate(){
+  if(sessionStorage.getItem(PASSWORD_STORAGE_KEY) === "1"){
+    showApp();
+    if(!appInitialized) initApp();
+  } else {
+    $("gate").classList.remove("hidden");
+    $("appRoot").classList.add("hidden");
+  }
 }
 
 function setStatus(msg,error=false){
@@ -793,7 +873,10 @@ if('serviceWorker' in navigator && location.protocol !== 'file:'){
   });
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function initApp(){
+  if(appInitialized) return;
+  appInitialized = true;
+
   $("refreshBtnMobile").addEventListener("click", ()=>loadData());
   $("refreshBtnDesktop").addEventListener("click", ()=>loadData());
   $("forcePollBtn").addEventListener("click", ()=>loadData());
@@ -817,9 +900,18 @@ window.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", () => { if(!document.hidden) loadData(false); });
   window.addEventListener("online", () => { loadData(false); connectRealtime(); });
   window.addEventListener("offline", () => { setRealtimeState(false, "Offline"); startFallbackPolling(); });
+
   loadData();
   connectRealtime();
   startFallbackPolling();
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  $("gateUnlockBtn").addEventListener("click", unlockApp);
+  $("gatePassword").addEventListener("keydown", (e) => {
+    if(e.key === "Enter") unlockApp();
+  });
+  checkGate();
 });
 </script>
 </body>
