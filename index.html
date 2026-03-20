@@ -4,9 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0b0f14" />
-  <title>ShadowPoint Watchtower</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ShadowPoint" />
+  <title>ShadowPoint</title>
+
   <link rel="manifest" href="./watchtower_v4_manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     :root{
       --bg:#0b0f14; --panel:#131922; --panel2:#1a2330; --text:#eef2f7; --muted:#98a2b3;
@@ -62,7 +68,6 @@
     .floating{position:fixed;right:14px;bottom:calc(94px + env(safe-area-inset-bottom));z-index:45;border-radius:999px;padding:14px 16px;font-size:18px;background:var(--blue);color:#fff;border:0;box-shadow:var(--shadow);font-weight:900}
     .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(11,15,20,.98);border-top:1px solid var(--border);padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
     .bottomnav .row{justify-content:space-between}
-    .switch{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
     .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
     .dot{width:9px;height:9px;border-radius:999px;background:#4b5563}
     .dot.on{background:#16a34a}
@@ -323,32 +328,16 @@ async function saveNew(){
 function formatDateTime(iso){ if(!iso) return "N/A"; const d=new Date(iso); if(Number.isNaN(d.getTime())) return iso; return d.toLocaleString(); }
 function setTab(tab){ currentTab=tab; $("tabTargets").classList.toggle("active",tab==="targets"); $("tabActivity").classList.toggle("active",tab==="activity"); $("tabHigh").classList.toggle("active",tab==="high"); renderAll(); }
 
-function startFallbackPolling(){
-  clearInterval(pollTimer);
-  pollTimer = setInterval(() => loadData(false), 20000);
-}
-function stopFallbackPolling(){
-  clearInterval(pollTimer);
-  pollTimer = null;
-}
-function scheduleReconnect(){
-  clearTimeout(reconnectTimer);
-  reconnectTimer = setTimeout(() => connectRealtime(), 4000);
-}
+function startFallbackPolling(){ clearInterval(pollTimer); pollTimer = setInterval(() => loadData(false), 20000); }
+function stopFallbackPolling(){ clearInterval(pollTimer); pollTimer = null; }
+function scheduleReconnect(){ clearTimeout(reconnectTimer); reconnectTimer = setTimeout(() => connectRealtime(), 4000); }
 function connectRealtime(){
   try{
-    if(realtimeChannel){
-      supabaseClient.removeChannel(realtimeChannel);
-      realtimeChannel = null;
-    }
+    if(realtimeChannel){ supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
     realtimeChannel = supabaseClient
       .channel("watchtower-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bail_intakes" }, payload => {
-        debounceReload(`bail_intakes ${payload.eventType}`);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "watchtower_events" }, payload => {
-        debounceReload(`watchtower_events ${payload.eventType}`);
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "bail_intakes" }, payload => debounceReload(`bail_intakes ${payload.eventType}`))
+      .on("postgres_changes", { event: "*", schema: "public", table: "watchtower_events" }, payload => debounceReload(`watchtower_events ${payload.eventType}`))
       .subscribe((status) => {
         if(status === "SUBSCRIBED"){
           setRealtimeState(true, "Realtime live");
@@ -366,6 +355,12 @@ function connectRealtime(){
     startFallbackPolling();
     scheduleReconnect();
   }
+}
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./watchtower_v4_sw.js').catch(err => console.warn('service worker failed', err));
+  });
 }
 
 window.addEventListener("DOMContentLoaded", () => {
