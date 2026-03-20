@@ -1,11 +1,14 @@
-const CACHE = 'watchtower-v4-shell-v2';
+const CACHE = 'watchtower-v4-shell-v3';
 
 const ASSETS = [
   './',
   './index.html',
-  './watchtower_v4_manifest.webmanifest'
+  './watchtower_v4_manifest.webmanifest',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
+// INSTALL
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
@@ -15,6 +18,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// ACTIVATE
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -26,10 +30,11 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// FETCH
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Always go to network for Supabase API calls
+  // Always hit network for Supabase API
   if (url.pathname.includes('/rest/v1/')) {
     event.respondWith(
       fetch(event.request).catch(() =>
@@ -41,7 +46,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for app files
+  // App shell caching
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
