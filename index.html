@@ -4,8 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0b0f14" />
-  <title>ShadowPoint Watchtower v4</title>
+  <title>ShadowPoint Watchtower</title>
   <link rel="manifest" href="./watchtower_v4_manifest.webmanifest" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root{
       --bg:#0b0f14; --panel:#131922; --panel2:#1a2330; --text:#eef2f7; --muted:#98a2b3;
@@ -62,6 +63,10 @@
     .bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(11,15,20,.98);border-top:1px solid var(--border);padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
     .bottomnav .row{justify-content:space-between}
     .switch{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+    .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+    .dot{width:9px;height:9px;border-radius:999px;background:#4b5563}
+    .dot.on{background:#16a34a}
+    .dot.off{background:#dc2626}
     @media (min-width:900px){
       body{padding-bottom:24px}.app{padding:0 12px}.toolbar{grid-template-columns:1.6fr .9fr .9fr .8fr}
       .statbar{grid-template-columns:repeat(6,1fr)} .tabs{grid-template-columns:repeat(3,1fr)}
@@ -77,10 +82,10 @@
     <div class="between">
       <div>
         <div class="title">ShadowPoint Watchtower</div>
-        <div class="sub">Mobile-first field app synced to laptop through Supabase</div>
+        <div class="sub">Realtime phone, iPad, and laptop sync through Supabase</div>
       </div>
       <div class="row desktop">
-        <button class="btn gray mini" id="installBtnDesktop" type="button">Install App</button>
+        <span class="live"><span id="liveDotDesktop" class="dot off"></span><span id="liveTextDesktop">Realtime offline</span></span>
         <button class="btn blue mini" id="refreshBtnDesktop" type="button">Refresh</button>
         <button class="btn blue mini" id="newBtnDesktop" type="button">New Defendant</button>
       </div>
@@ -132,9 +137,13 @@
 
 <nav class="bottomnav">
   <div class="row">
-    <button class="btn gray mini" id="installBtnMobile" type="button">Install</button>
-    <button class="btn gray mini" id="refreshBtnMobile" type="button">Refresh</button>
-    <div class="switch"><input type="checkbox" id="autoRefreshToggle" checked /><label for="autoRefreshToggle">Auto Sync</label></div>
+    <div class="row">
+      <span class="live"><span id="liveDotMobile" class="dot off"></span><span id="liveTextMobile">Realtime offline</span></span>
+    </div>
+    <div class="row">
+      <button class="btn gray mini" id="refreshBtnMobile" type="button">Refresh</button>
+      <button class="btn gray mini" id="forcePollBtn" type="button">Resync</button>
+    </div>
   </div>
 </nav>
 
@@ -170,11 +179,19 @@
 const SUPABASE_URL = "https://hulcxftmoazrvkjqqyuk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_yFa3GaBBsHYn-VfK8ivRJQ__vuu_q2T";
 const API_BASE = SUPABASE_URL + "/rest/v1";
-let allRows = [], allEvents = [], eventMap = {}, noteTarget = null, deferInstallPrompt = null, autoRefreshId = null, currentTab = "targets";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let allRows = [], allEvents = [], eventMap = {}, noteTarget = null, currentTab = "targets";
+let realtimeChannel = null, reconnectTimer = null, pollTimer = null, pendingRefresh = false, lastSyncLabel = "";
+
 const $ = (id) => document.getElementById(id);
 
 function esc(v){return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
-function setStatus(msg,error=false){const box=$("statusBox");box.textContent=msg;box.style.borderColor=error?"#7f1d1d":"#253041";box.style.background=error?"#2b1215":"#131922";box.style.color=error?"#fecaca":"#eef2f7";}
+function setStatus(msg,error=false){const box=$("statusBox"); box.textContent=msg; box.style.borderColor=error?"#7f1d1d":"#253041"; box.style.background=error?"#2b1215":"#131922"; box.style.color=error?"#fecaca":"#eef2f7"; if(!error) lastSyncLabel = msg;}
+function setRealtimeState(online, text){
+  ["liveDotDesktop","liveDotMobile"].forEach(id => { const el = $(id); if (el) el.className = "dot " + (online ? "on" : "off"); });
+  ["liveTextDesktop","liveTextMobile"].forEach(id => { const el = $(id); if (el) el.textContent = text; });
+}
 async function api(path, options={}){
   const res = await fetch(API_BASE + path, {
     method: options.method || "GET",
@@ -254,20 +271,37 @@ function renderActivity(){
 }
 function renderAll(){ renderTargets(); renderActivity(); }
 async function loadData(showMessage=true){
+  if (pendingRefresh) return;
+  pendingRefresh = true;
   try{
     if(showMessage) setStatus("Syncing defendants and recent field activity...");
     allRows = await api("/bail_intakes?select=id,created_at,updated_at,defendant_name,name,phone,status,county,case_number,court_date,address,notes,watchlist,aliases,cosigner_name,cosigner_phone&order=created_at.desc&limit=300") || [];
     try{ allEvents = await api("/watchtower_events?select=id,bail_intake_id,event_type,event_label,details,created_at&order=created_at.desc&limit=800") || []; }catch(_){ allEvents=[]; }
     eventMap={}; for(const evt of allEvents){ if(!eventMap[evt.bail_intake_id]) eventMap[evt.bail_intake_id]=[]; eventMap[evt.bail_intake_id].push(evt); }
-    renderAll(); const now = new Date().toLocaleTimeString(); if(showMessage) setStatus(`Synced ${allRows.length} defendants. Last sync ${now}.`);
-  }catch(err){ console.error(err); setStatus("Sync failed: " + err.message, true); }
+    renderAll();
+    const now = new Date().toLocaleTimeString();
+    if(showMessage) setStatus(`Synced ${allRows.length} defendants. Last sync ${now}.`);
+  }catch(err){
+    console.error(err);
+    setStatus("Sync failed: " + err.message, true);
+  } finally {
+    pendingRefresh = false;
+  }
+}
+function debounceReload(reason){
+  setStatus(`Realtime update received: ${reason}. Syncing...`);
+  clearTimeout(window.__rtTimer);
+  window.__rtTimer = setTimeout(() => loadData(false).then(() => {
+    const now = new Date().toLocaleTimeString();
+    setStatus(`Realtime synced. Last sync ${now}.`);
+  }), 350);
 }
 async function insertEvent(id,type,label,details){ await api("/watchtower_events", {method:"POST", body:{bail_intake_id:id,event_type:type,event_label:label,details:details||null}}); }
-async function quickEvent(id,type,label,details){ try{ setStatus(label+"..."); await insertEvent(id,type,label,details); await loadData(false); setStatus(label+" logged."); }catch(err){ console.error(err); setStatus(label+" failed: " + err.message, true); } }
-async function setStatusAction(id,status,label){ try{ setStatus(label+"..."); await api(`/bail_intakes?id=eq.${id}`, {method:"PATCH", body:{status}}); await insertEvent(id,"status_change",label,`Status changed to ${status}.`); await loadData(false); setStatus(label+"."); }catch(err){ console.error(err); setStatus(label+" failed: " + err.message, true); } }
+async function quickEvent(id,type,label,details){ try{ setStatus(label+"..."); await insertEvent(id,type,label,details); }catch(err){ console.error(err); setStatus(label+" failed: " + err.message, true); } }
+async function setStatusAction(id,status,label){ try{ setStatus(label+"..."); await api(`/bail_intakes?id=eq.${id}`, {method:"PATCH", body:{status}}); await insertEvent(id,"status_change",label,`Status changed to ${status}.`); }catch(err){ console.error(err); setStatus(label+" failed: " + err.message, true); } }
 function openNote(id){ noteTarget=allRows.find(r=>r.id===id)||null; if(!noteTarget) return; $("noteName").value=noteTarget.defendant_name||noteTarget.name||""; $("noteText").value=""; $("noteBack").style.display="flex"; }
 function closeNote(){ $("noteBack").style.display="none"; noteTarget=null; }
-async function saveNote(){ if(!noteTarget){ setStatus("No defendant selected.", true); return; } const text=$("noteText").value.trim(); if(!text){ setStatus("Enter a note first.", true); return; } try{ $("saveNoteBtn").disabled=true; setStatus("Saving note..."); await insertEvent(noteTarget.id,"field_note","Field Note",text); closeNote(); await loadData(false); setStatus("Field note saved."); }catch(err){ console.error(err); setStatus("Note save failed: " + err.message, true); } finally{ $("saveNoteBtn").disabled=false; } }
+async function saveNote(){ if(!noteTarget){ setStatus("No defendant selected.", true); return; } const text=$("noteText").value.trim(); if(!text){ setStatus("Enter a note first.", true); return; } try{ $("saveNoteBtn").disabled=true; setStatus("Saving note..."); await insertEvent(noteTarget.id,"field_note","Field Note",text); closeNote(); }catch(err){ console.error(err); setStatus("Note save failed: " + err.message, true); } finally{ $("saveNoteBtn").disabled=false; } }
 function openDetails(id){
   const row=allRows.find(r=>r.id===id); if(!row) return; const evs=recentEventsFor(id);
   $("detailContent").innerHTML = `<div class="card" style="margin-bottom:12px"><div class="name">${esc(row.defendant_name||row.name||"Unnamed")}</div><div class="pillbar" style="margin-top:8px">${statusPill(row.status)}${riskPill(riskScore(row))}<span class="pill">${esc(row.county||"No County")}</span></div><div class="grid2" style="margin-top:12px"><div class="field"><div class="k">Case #</div><div class="v">${esc(row.case_number||"N/A")}</div></div><div class="field"><div class="k">Court Date</div><div class="v">${esc(row.court_date||"N/A")}</div></div><div class="field"><div class="k">Phone</div><div class="v">${esc(row.phone||"N/A")}</div></div><div class="field"><div class="k">Address</div><div class="v">${esc(row.address||"N/A")}</div></div></div></div><div class="activity">${evs.length ? evs.map(e => `<div class="event"><div class="t">${esc(e.event_label || e.event_type || "Event")}</div><div class="m">${esc(formatDateTime(e.created_at))}</div><div style="margin-top:6px">${esc(e.details || "")}</div></div>`).join("") : '<div class="event"><div class="t">No activity yet</div></div>'}</div>`;
@@ -284,18 +318,60 @@ async function saveNew(){
     const out = await api("/bail_intakes", {method:"POST", body:payload}); const id = out?.[0]?.id;
     if(id) await insertEvent(id,"defendant_created","Defendant Added","New defendant added to roster.");
     closeNew(); ["f_name","f_dob","f_phone","f_county","f_case","f_court","f_address","f_cosigner","f_cosigner_phone","f_notes"].forEach(id => $(id).value=""); $("f_status").value="Open";
-    await loadData(false); setStatus("Defendant saved.");
   }catch(err){ console.error(err); setStatus("Save failed: " + err.message, true); } finally{ $("saveNewBtn").disabled=false; }
 }
 function formatDateTime(iso){ if(!iso) return "N/A"; const d=new Date(iso); if(Number.isNaN(d.getTime())) return iso; return d.toLocaleString(); }
 function setTab(tab){ currentTab=tab; $("tabTargets").classList.toggle("active",tab==="targets"); $("tabActivity").classList.toggle("active",tab==="activity"); $("tabHigh").classList.toggle("active",tab==="high"); renderAll(); }
-function setupAutoRefresh(){ const enabled=$("autoRefreshToggle").checked; if(autoRefreshId) clearInterval(autoRefreshId); if(enabled) autoRefreshId=setInterval(()=>loadData(false),20000); }
-async function installApp(){ if(deferInstallPrompt){ deferInstallPrompt.prompt(); await deferInstallPrompt.userChoice; deferInstallPrompt=null; $("installBtnMobile").classList.add("hidden"); $("installBtnDesktop").classList.add("hidden"); } else { setStatus("Install prompt not available here. Open through a local server or HTTPS hosting to install on phone/iPad.", true); } }
-function registerSW(){ if("serviceWorker" in navigator && location.protocol !== "file:"){ navigator.serviceWorker.register("./watchtower_v4_sw.js").catch(err => console.warn("SW registration failed", err)); } }
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferInstallPrompt=e; $("installBtnMobile").classList.remove("hidden"); $("installBtnDesktop").classList.remove("hidden"); });
+
+function startFallbackPolling(){
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => loadData(false), 20000);
+}
+function stopFallbackPolling(){
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+function scheduleReconnect(){
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => connectRealtime(), 4000);
+}
+function connectRealtime(){
+  try{
+    if(realtimeChannel){
+      supabaseClient.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    realtimeChannel = supabaseClient
+      .channel("watchtower-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bail_intakes" }, payload => {
+        debounceReload(`bail_intakes ${payload.eventType}`);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "watchtower_events" }, payload => {
+        debounceReload(`watchtower_events ${payload.eventType}`);
+      })
+      .subscribe((status) => {
+        if(status === "SUBSCRIBED"){
+          setRealtimeState(true, "Realtime live");
+          stopFallbackPolling();
+          if (lastSyncLabel) setStatus(lastSyncLabel);
+        } else if(status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
+          setRealtimeState(false, "Realtime reconnecting");
+          startFallbackPolling();
+          scheduleReconnect();
+        }
+      });
+  } catch (err){
+    console.error(err);
+    setRealtimeState(false, "Realtime failed");
+    startFallbackPolling();
+    scheduleReconnect();
+  }
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   $("refreshBtnMobile").addEventListener("click", ()=>loadData());
   $("refreshBtnDesktop").addEventListener("click", ()=>loadData());
+  $("forcePollBtn").addEventListener("click", ()=>loadData());
   $("newBtnMobile").addEventListener("click", openNew);
   $("newBtnDesktop").addEventListener("click", openNew);
   $("closeNoteBtn").addEventListener("click", closeNote);
@@ -303,8 +379,6 @@ window.addEventListener("DOMContentLoaded", () => {
   $("closeDetailBtn").addEventListener("click", closeDetails);
   $("closeNewBtn").addEventListener("click", closeNew);
   $("saveNewBtn").addEventListener("click", saveNew);
-  $("installBtnMobile").addEventListener("click", installApp);
-  $("installBtnDesktop").addEventListener("click", installApp);
   $("tabTargets").addEventListener("click", ()=>setTab("targets"));
   $("tabActivity").addEventListener("click", ()=>setTab("activity"));
   $("tabHigh").addEventListener("click", ()=>setTab("high"));
@@ -312,8 +386,12 @@ window.addEventListener("DOMContentLoaded", () => {
   $("detailBack").addEventListener("click", (e)=>{ if(e.target === $("detailBack")) closeDetails(); });
   $("newBack").addEventListener("click", (e)=>{ if(e.target === $("newBack")) closeNew(); });
   ["searchInput","statusFilter","viewFilter","sortFilter"].forEach(id => { $(id).addEventListener("input", renderAll); $(id).addEventListener("change", renderAll); });
-  $("autoRefreshToggle").addEventListener("change", setupAutoRefresh);
-  setupAutoRefresh(); registerSW(); loadData();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loadData(false); });
+  window.addEventListener("online", () => { loadData(false); connectRealtime(); });
+  window.addEventListener("offline", () => { setRealtimeState(false, "Offline"); startFallbackPolling(); });
+  loadData();
+  connectRealtime();
+  startFallbackPolling();
 });
 </script>
 </body>
