@@ -1,81 +1,312 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ShadowPoint</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
-body { margin:0; font-family:Arial; background:#0b0f14; color:#fff; }
-.header { padding:14px; font-size:20px; font-weight:800; border-bottom:1px solid #222; }
+  :root{
+    --bg:#0b0f14;
+    --panel:#131922;
+    --panel2:#1a2330;
+    --line:#263041;
+    --text:#eef2f7;
+    --muted:#98a2b3;
+    --blue:#2563eb;
+    --green:#16a34a;
+    --orange:#d97706;
+    --red:#dc2626;
+    --pill:#1f2937;
+  }
 
-.card {
-  background:#131922;
-  margin:10px;
-  border-radius:14px;
-  overflow:hidden;
-}
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
 
-.cardHeader {
-  padding:12px;
-  font-size:18px;
-  font-weight:800;
-  cursor:pointer;
-}
+  .header{
+    padding:14px;
+    font-size:20px;
+    font-weight:800;
+    border-bottom:1px solid #222;
+    position:sticky;
+    top:0;
+    z-index:10;
+    background:rgba(11,15,20,.96);
+    backdrop-filter:blur(10px);
+  }
 
-.cardBody {
-  padding:12px;
-  display:none;
-}
+  .toolbar{
+    padding:10px;
+    border-bottom:1px solid #1b2230;
+    background:#0e131a;
+  }
 
-.open .cardBody { display:block; }
+  .toolbar input{
+    width:100%;
+    padding:12px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    color:var(--text);
+    font-size:15px;
+  }
 
-.section { margin-top:10px; }
+  .statusbar{
+    padding:10px;
+    color:var(--muted);
+    font-size:13px;
+  }
 
-input {
-  width:100%;
-  padding:10px;
-  margin-top:6px;
-  border-radius:8px;
-  border:1px solid #333;
-  background:#1a2330;
-  color:#fff;
-}
+  .card{
+    background:var(--panel);
+    margin:10px;
+    border-radius:14px;
+    overflow:hidden;
+    border:1px solid #1d2633;
+  }
 
-button {
-  padding:8px;
-  border:none;
-  border-radius:8px;
-  font-weight:bold;
-  margin-top:6px;
-  margin-right:6px;
-}
+  .cardHeader{
+    padding:12px;
+    cursor:pointer;
+  }
 
-.red { background:#dc2626; }
-.orange { background:#d97706; }
-.green { background:#16a34a; }
+  .cardHeaderTop{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:flex-start;
+  }
 
-.pill {
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:999px;
-  font-size:12px;
-  margin-right:4px;
-}
+  .name{
+    font-size:18px;
+    font-weight:800;
+    line-height:1.15;
+  }
 
-.task {
-  display:flex;
-  justify-content:space-between;
-  margin-top:4px;
-}
+  .subline{
+    margin-top:6px;
+    color:var(--muted);
+    font-size:13px;
+  }
+
+  .caret{
+    font-size:18px;
+    font-weight:800;
+    color:var(--muted);
+    min-width:20px;
+    text-align:right;
+  }
+
+  .pillbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:8px;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    padding:5px 9px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    background:var(--pill);
+    border:1px solid #2a374a;
+    color:#fff;
+  }
+
+  .pill.red{ background:#3a1719; border-color:#6e2227; }
+  .pill.orange{ background:#3e2b12; border-color:#7b4e0d; }
+  .pill.green{ background:#143420; border-color:#1f6d3a; }
+  .pill.blue{ background:#132c4f; border-color:#2758a5; }
+
+  .cardBody{
+    display:none;
+    padding:12px;
+    border-top:1px solid #1d2633;
+    background:#10161f;
+  }
+
+  .card.open .cardBody{
+    display:block;
+  }
+
+  .section{
+    margin-top:12px;
+  }
+
+  .section:first-child{
+    margin-top:0;
+  }
+
+  .sectionTitle{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin-bottom:8px;
+    font-weight:800;
+  }
+
+  .metaGrid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+
+  .field{
+    background:var(--panel2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px;
+    min-width:0;
+  }
+
+  .field .k{
+    font-size:11px;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:4px;
+  }
+
+  .field .v{
+    font-size:14px;
+    font-weight:700;
+    word-break:break-word;
+  }
+
+  .actions{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:8px;
+  }
+
+  .btn{
+    border:none;
+    border-radius:10px;
+    padding:11px 10px;
+    font-weight:800;
+    color:#fff;
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  .btn.blue{ background:var(--blue); }
+  .btn.green{ background:var(--green); }
+  .btn.orange{ background:var(--orange); }
+  .btn.red{ background:var(--red); }
+  .btn.gray{ background:#374151; }
+
+  .input, .select{
+    width:100%;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    color:var(--text);
+    font-size:14px;
+  }
+
+  .inputRow{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:8px;
+  }
+
+  .task{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    margin-bottom:8px;
+  }
+
+  .taskTitle{
+    font-size:14px;
+    font-weight:700;
+    word-break:break-word;
+  }
+
+  .taskDone{
+    color:#8dd3a1;
+  }
+
+  .timeline{
+    display:grid;
+    gap:8px;
+  }
+
+  .timelineItem{
+    border:1px solid var(--line);
+    background:var(--panel2);
+    border-radius:12px;
+    padding:10px;
+  }
+
+  .timelineTop{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:flex-start;
+  }
+
+  .timelineType{
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+
+  .timelineTime{
+    font-size:12px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+
+  .timelineText{
+    margin-top:6px;
+    font-size:14px;
+    line-height:1.45;
+    word-break:break-word;
+  }
+
+  .empty{
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  .small{
+    color:var(--muted);
+    font-size:12px;
+    margin-top:6px;
+  }
+
+  @media (max-width:640px){
+    .metaGrid{ grid-template-columns:1fr; }
+  }
 </style>
 </head>
-
 <body>
 
 <div class="header">ShadowPoint</div>
+
+<div class="toolbar">
+  <input id="searchInput" type="text" placeholder="Search defendant..." />
+</div>
+
+<div id="statusbar" class="statusbar">Loading...</div>
 <div id="app">Loading...</div>
 
 <script>
@@ -84,138 +315,468 @@ const supabase = window.supabase.createClient(
   "sb_publishable_yFa3GaBBsHYn-VfK8ivRJQ__vuu_q2T"
 );
 
+let CASES = [];
+
+function esc(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function fmtDate(value) {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return String(value);
+  }
+}
+
+function getCaseName(c) {
+  return c.defendant_name || c.name || "NO NAME";
+}
+
+function getStatusText(c) {
+  return c.status || c.case_status || c.current_status || "";
+}
+
+function getPhoneText(c) {
+  return c.phone || c.phone_number || c.defendant_phone || c.mobile_phone || "";
+}
+
+function getAddressText(c) {
+  return c.address || c.home_address || c.street_address || c.last_known_address || "";
+}
+
+function buildTimeline(notes, tasks, alerts, events) {
+  const items = [];
+
+  (notes || []).forEach(n => {
+    items.push({
+      type: "note",
+      label: "Field Note",
+      color: "blue",
+      text: n.note || n.body || "",
+      created_at: n.created_at || n.inserted_at || null
+    });
+  });
+
+  (tasks || []).forEach(t => {
+    items.push({
+      type: "task",
+      label: t.completed ? "Task Complete" : "Task",
+      color: t.completed ? "green" : "orange",
+      text: t.title || t.task || "",
+      created_at: t.updated_at || t.created_at || null
+    });
+  });
+
+  (alerts || []).forEach(a => {
+    items.push({
+      type: "alert",
+      label: "Alert",
+      color: a.type || "red",
+      text: a.message || a.alert_text || "",
+      created_at: a.created_at || null
+    });
+  });
+
+  (events || []).forEach(e => {
+    const action = e.action || e.event_type || e.type || "Event";
+    const note = e.note || e.details || e.description || "";
+    const text = note ? action + " — " + note : action;
+    items.push({
+      type: "event",
+      label: "Activity",
+      color: "blue",
+      text,
+      created_at: e.created_at || e.event_time || null
+    });
+  });
+
+  items.sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return items;
+}
+
+function renderCases() {
+  const app = document.getElementById("app");
+  const statusbar = document.getElementById("statusbar");
+  const query = document.getElementById("searchInput").value.trim().toLowerCase();
+
+  const filtered = CASES.filter(c => {
+    if (!query) return true;
+    const haystack = [
+      getCaseName(c),
+      getStatusText(c),
+      getPhoneText(c),
+      getAddressText(c)
+    ].join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
+
+  statusbar.textContent = `${filtered.length} case${filtered.length === 1 ? "" : "s"}`;
+
+  if (!filtered.length) {
+    app.innerHTML = `<div class="card"><div class="cardBody" style="display:block;"><div class="empty">No matching cases</div></div></div>`;
+    return;
+  }
+
+  app.innerHTML = "";
+
+  filtered.forEach(c => {
+    const name = getCaseName(c);
+    const status = getStatusText(c);
+    const phone = getPhoneText(c);
+    const address = getAddressText(c);
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card-${c.id}`;
+
+    card.innerHTML = `
+      <div class="cardHeader" onclick="toggleCard('${esc(c.id)}')">
+        <div class="cardHeaderTop">
+          <div>
+            <div class="name">${esc(name)}</div>
+            <div class="subline">${esc(status || "No status")} ${phone ? "• " + esc(phone) : ""}</div>
+            <div class="pillbar" id="summary-alerts-${esc(c.id)}"></div>
+          </div>
+          <div class="caret">⌄</div>
+        </div>
+      </div>
+
+      <div class="cardBody" id="body-${esc(c.id)}">
+        <div class="metaGrid">
+          <div class="field">
+            <div class="k">Status</div>
+            <div class="v">${esc(status || "—")}</div>
+          </div>
+          <div class="field">
+            <div class="k">Phone</div>
+            <div class="v">${esc(phone || "—")}</div>
+          </div>
+          <div class="field">
+            <div class="k">Address</div>
+            <div class="v">${esc(address || "—")}</div>
+          </div>
+          <div class="field">
+            <div class="k">Defendant ID</div>
+            <div class="v">${esc(c.id)}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Quick Actions</div>
+          <div class="actions">
+            <button class="btn blue" onclick="logQuickEvent('${esc(c.id)}','Call Defendant')">Call Defendant</button>
+            <button class="btn gray" onclick="logQuickEvent('${esc(c.id)}','Call Cosigner')">Call Cosigner</button>
+            <button class="btn orange" onclick="logQuickEvent('${esc(c.id)}','Check Social')">Check Social</button>
+            <button class="btn green" onclick="logQuickEvent('${esc(c.id)}','Check Jail')">Check Jail</button>
+            <button class="btn red" onclick="logQuickEvent('${esc(c.id)}','Go To House')">Go To House</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Timeline</div>
+          <div id="timeline-${esc(c.id)}" class="timeline"><div class="empty">Loading timeline...</div></div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Add Note</div>
+          <div class="inputRow">
+            <input class="input" id="note-input-${esc(c.id)}" type="text" placeholder="Add field note..." />
+            <button class="btn blue" onclick="addNote('${esc(c.id)}')">Save</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Add Task</div>
+          <div class="inputRow">
+            <input class="input" id="task-input-${esc(c.id)}" type="text" placeholder="New task..." />
+            <button class="btn orange" onclick="addTask('${esc(c.id)}')">Add</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Add Alert</div>
+          <div class="actions">
+            <button class="btn red" onclick="addAlert('${esc(c.id)}','red')">Red Alert</button>
+            <button class="btn orange" onclick="addAlert('${esc(c.id)}','orange')">Orange Alert</button>
+            <button class="btn green" onclick="addAlert('${esc(c.id)}','green')">Green Alert</button>
+          </div>
+        </div>
+
+        <div class="small" id="detail-status-${esc(c.id)}"></div>
+      </div>
+    `;
+
+    app.appendChild(card);
+    loadCaseDetails(c.id);
+  });
+}
+
+function toggleCard(id) {
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.classList.toggle("open");
+}
+
 async function loadCases() {
-  const container = document.getElementById("app");
-  container.innerHTML = "Loading...";
+  const app = document.getElementById("app");
+  const statusbar = document.getElementById("statusbar");
+
+  app.innerHTML = "Loading...";
+  statusbar.textContent = "Loading...";
 
   try {
     const res = await supabase
       .from("bail_intakes")
       .select("*")
-      .limit(50);
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-    if (!res.data || res.data.length === 0) {
-      container.innerHTML = "No cases found";
+    if (res.error) {
+      app.innerHTML = `<div class="card"><div class="cardBody" style="display:block;">Error loading cases: ${esc(res.error.message)}</div></div>`;
+      statusbar.textContent = "Load failed";
       return;
     }
 
-    container.innerHTML = "";
-
-    res.data.forEach(c => {
-      const name = c.defendant_name || c.name || "NO NAME";
-
-      const card = document.createElement("div");
-      card.className = "card";
-
-      card.innerHTML = `
-        <div class="cardHeader" onclick="toggleCard(this)">
-          ${name}
-        </div>
-
-        <div class="cardBody" id="body-${c.id}">
-          Loading details...
-        </div>
-      `;
-
-      container.appendChild(card);
-
-      // LOAD DETAILS AFTER RENDER (NON-BLOCKING)
-      loadDetails(c.id);
-    });
-
+    CASES = res.data || [];
+    renderCases();
   } catch (err) {
-    container.innerHTML = "Error: " + err.message;
+    app.innerHTML = `<div class="card"><div class="cardBody" style="display:block;">Crash loading cases: ${esc(err.message || err)}</div></div>`;
+    statusbar.textContent = "Load failed";
   }
 }
 
-function toggleCard(el) {
-  el.parentElement.classList.toggle("open");
-}
+async function loadCaseDetails(defendantId) {
+  const timelineEl = document.getElementById(`timeline-${defendantId}`);
+  const summaryAlertsEl = document.getElementById(`summary-alerts-${defendantId}`);
+  const detailStatusEl = document.getElementById(`detail-status-${defendantId}`);
 
-async function loadDetails(id) {
-  const body = document.getElementById("body-" + id);
+  if (!timelineEl) return;
+
+  timelineEl.innerHTML = `<div class="empty">Loading timeline...</div>`;
+  if (summaryAlertsEl) summaryAlertsEl.innerHTML = "";
+  if (detailStatusEl) detailStatusEl.textContent = "";
 
   try {
-    const [notesRes, tasksRes, alertsRes] = await Promise.all([
-      supabase.from("field_notes").select("*").eq("defendant_id", id),
-      supabase.from("tasks").select("*").eq("defendant_id", id),
-      supabase.from("alerts").select("*").eq("defendant_id", id)
+    const [notesRes, tasksRes, alertsRes, eventsRes] = await Promise.all([
+      supabase.from("field_notes").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("tasks").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("alerts").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("watchtower_events").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false })
     ]);
 
     const notes = notesRes.data || [];
     const tasks = tasksRes.data || [];
     const alerts = alertsRes.data || [];
+    const events = eventsRes.data || [];
 
-    body.innerHTML = `
-      <div class="section">
-        ${alerts.map(a =>
-          `<span class="pill ${a.type}">${a.message}</span>`
-        ).join("")}
-      </div>
+    if (summaryAlertsEl) {
+      summaryAlertsEl.innerHTML = alerts.slice(0, 3).map(a => {
+        const color = a.type || "red";
+        const text = a.message || a.alert_text || "Alert";
+        return `<span class="pill ${esc(color)}">${esc(text)}</span>`;
+      }).join("");
+    }
 
-      <div class="section">
-        <strong>Notes</strong>
-        ${notes.map(n => `<div>• ${n.note}</div>`).join("")}
-        <input placeholder="Add note"
-          onkeydown="if(event.key==='Enter'){addNote('${id}', this.value); this.value=''}">
-      </div>
+    const timeline = buildTimeline(notes, tasks, alerts, events);
 
-      <div class="section">
-        <strong>Tasks</strong>
-        ${tasks.map(t => `
-          <div class="task">
-            <span>${t.completed ? "✔ " : ""}${t.title}</span>
-            <button onclick="toggleTask('${t.id}', ${t.completed})">
-              ${t.completed ? "Undo" : "Done"}
-            </button>
+    if (!timeline.length) {
+      timelineEl.innerHTML = `<div class="empty">No timeline activity yet</div>`;
+    } else {
+      timelineEl.innerHTML = timeline.map(item => `
+        <div class="timelineItem">
+          <div class="timelineTop">
+            <span class="timelineType pill ${esc(item.color)}">${esc(item.label)}</span>
+            <span class="timelineTime">${esc(fmtDate(item.created_at) || "")}</span>
           </div>
-        `).join("")}
-        <input placeholder="New task"
-          onkeydown="if(event.key==='Enter'){addTask('${id}', this.value); this.value=''}">
-      </div>
+          <div class="timelineText">${esc(item.text || "—")}</div>
+        </div>
+      `).join("");
+    }
 
-      <div class="section">
-        <strong>Alerts</strong><br>
-        <button class="red" onclick="addAlert('${id}','red')">🔴</button>
-        <button class="orange" onclick="addAlert('${id}','orange')">🟠</button>
-        <button class="green" onclick="addAlert('${id}','green')">🟢</button>
-      </div>
-    `;
-
+    if (detailStatusEl) {
+      detailStatusEl.textContent =
+        `${notes.length} notes • ${tasks.length} tasks • ${alerts.length} alerts • ${events.length} events`;
+    }
   } catch (err) {
-    body.innerHTML = "Error loading details";
+    timelineEl.innerHTML = `<div class="empty">Error loading timeline</div>`;
+    if (detailStatusEl) detailStatusEl.textContent = "Detail load failed";
   }
 }
 
-async function addNote(id, text) {
+async function addNote(defendantId) {
+  const input = document.getElementById(`note-input-${defendantId}`);
+  const text = (input?.value || "").trim();
   if (!text) return;
-  await supabase.from("field_notes").insert({ defendant_id:id, note:text });
-  loadDetails(id);
+
+  try {
+    await supabase.from("field_notes").insert({
+      defendant_id: defendantId,
+      note: text
+    });
+
+    if (input) input.value = "";
+    loadCaseDetails(defendantId);
+  } catch {}
 }
 
-async function addTask(id, text) {
+async function addTask(defendantId) {
+  const input = document.getElementById(`task-input-${defendantId}`);
+  const text = (input?.value || "").trim();
   if (!text) return;
-  await supabase.from("tasks").insert({ defendant_id:id, title:text, completed:false });
-  loadDetails(id);
+
+  try {
+    await supabase.from("tasks").insert({
+      defendant_id: defendantId,
+      title: text,
+      completed: false
+    });
+
+    if (input) input.value = "";
+    loadCaseDetails(defendantId);
+  } catch {}
 }
 
-async function toggleTask(id, current) {
-  await supabase.from("tasks").update({ completed:!current }).eq("id", id);
-  loadDetails(id);
+async function toggleTask(taskId, currentValue, defendantId) {
+  try {
+    await supabase
+      .from("tasks")
+      .update({ completed: !currentValue })
+      .eq("id", taskId);
+
+    loadCaseDetails(defendantId);
+  } catch {}
 }
 
-async function addAlert(id, type) {
+async function addAlert(defendantId, type) {
   const message = prompt("Alert message:");
   if (!message) return;
 
-  await supabase.from("alerts").insert({
-    defendant_id:id,
-    type,
-    message
-  });
+  try {
+    await supabase.from("alerts").insert({
+      defendant_id: defendantId,
+      type,
+      message
+    });
 
-  loadDetails(id);
+    loadCaseDetails(defendantId);
+  } catch {}
 }
+
+async function logQuickEvent(defendantId, action) {
+  try {
+    await supabase.from("watchtower_events").insert({
+      defendant_id: defendantId,
+      action
+    });
+
+    loadCaseDetails(defendantId);
+  } catch {}
+}
+
+document.getElementById("searchInput").addEventListener("input", renderCases);
+
+document.addEventListener("click", function(e) {
+  const btn = e.target.closest("[data-task-id]");
+  if (!btn) return;
+});
+
+window.toggleTask = function(taskId, currentValue, defendantId) {
+  return toggleTask(taskId, currentValue, defendantId);
+};
+
+const originalLoadCaseDetails = loadCaseDetails;
+loadCaseDetails = async function(defendantId) {
+  const timelineEl = document.getElementById(`timeline-${defendantId}`);
+  const summaryAlertsEl = document.getElementById(`summary-alerts-${defendantId}`);
+  const detailStatusEl = document.getElementById(`detail-status-${defendantId}`);
+
+  if (!timelineEl) return;
+
+  timelineEl.innerHTML = `<div class="empty">Loading timeline...</div>`;
+  if (summaryAlertsEl) summaryAlertsEl.innerHTML = "";
+  if (detailStatusEl) detailStatusEl.textContent = "";
+
+  try {
+    const [notesRes, tasksRes, alertsRes, eventsRes] = await Promise.all([
+      supabase.from("field_notes").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("tasks").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("alerts").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
+      supabase.from("watchtower_events").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false })
+    ]);
+
+    const notes = notesRes.data || [];
+    const tasks = tasksRes.data || [];
+    const alerts = alertsRes.data || [];
+    const events = eventsRes.data || [];
+
+    if (summaryAlertsEl) {
+      summaryAlertsEl.innerHTML = alerts.slice(0, 3).map(a => {
+        const color = a.type || "red";
+        const text = a.message || a.alert_text || "Alert";
+        return `<span class="pill ${esc(color)}">${esc(text)}</span>`;
+      }).join("");
+    }
+
+    const timeline = buildTimeline(notes, tasks, alerts, events);
+
+    if (!timeline.length) {
+      timelineEl.innerHTML = `<div class="empty">No timeline activity yet</div>`;
+    } else {
+      timelineEl.innerHTML = timeline.map(item => `
+        <div class="timelineItem">
+          <div class="timelineTop">
+            <span class="timelineType pill ${esc(item.color)}">${esc(item.label)}</span>
+            <span class="timelineTime">${esc(fmtDate(item.created_at) || "")}</span>
+          </div>
+          <div class="timelineText">${esc(item.text || "—")}</div>
+        </div>
+      `).join("");
+    }
+
+    const body = document.getElementById(`body-${defendantId}`);
+    if (body) {
+      const tasksHtml = tasks.map(t => `
+        <div class="task">
+          <div class="taskTitle ${t.completed ? "taskDone" : ""}">${esc((t.completed ? "✔ " : "") + (t.title || ""))}</div>
+          <button class="btn gray" onclick="toggleTask('${esc(t.id)}', ${t.completed ? "true" : "false"}, '${esc(defendantId)}')">
+            ${t.completed ? "Undo" : "Done"}
+          </button>
+        </div>
+      `).join("");
+
+      const sections = body.querySelectorAll(".section");
+      if (sections[3]) {
+        const tasksSection = sections[3];
+        tasksSection.innerHTML = `
+          <div class="sectionTitle">Add Task</div>
+          ${tasksHtml}
+          <div class="inputRow">
+            <input class="input" id="task-input-${esc(defendantId)}" type="text" placeholder="New task..." />
+            <button class="btn orange" onclick="addTask('${esc(defendantId)}')">Add</button>
+          </div>
+        `;
+      }
+    }
+
+    if (detailStatusEl) {
+      detailStatusEl.textContent = `${notes.length} notes • ${tasks.length} tasks • ${alerts.length} alerts • ${events.length} events`;
+    }
+  } catch (err) {
+    timelineEl.innerHTML = `<div class="empty">Error loading timeline</div>`;
+    if (detailStatusEl) detailStatusEl.textContent = "Detail load failed";
+  }
+};
 
 loadCases();
 </script>
