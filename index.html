@@ -221,6 +221,20 @@
     gap:8px;
   }
 
+  .statusRow{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:8px;
+    align-items:center;
+  }
+
+  .statusSummary{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:8px;
+  }
+
   .task{
     display:flex;
     justify-content:space-between;
@@ -293,6 +307,14 @@
     margin-top:6px;
   }
 
+  .small.ok{
+    color:#8dd3a1;
+  }
+
+  .small.err{
+    color:#fca5a5;
+  }
+
   @media (max-width:640px){
     .metaGrid{ grid-template-columns:1fr; }
   }
@@ -314,6 +336,16 @@ const supabase = window.supabase.createClient(
   "https://hulcxftmoazrvkjqqyuk.supabase.co",
   "sb_publishable_yFa3GaBBsHYn-VfK8ivRJQ__vuu_q2T"
 );
+
+const STATUS_OPTIONS = [
+  "Open",
+  "Missed Court",
+  "Missed Payment",
+  "In Recovery",
+  "Located",
+  "Returned to Custody",
+  "Closed"
+];
 
 let CASES = [];
 
@@ -349,6 +381,41 @@ function getPhoneText(c) {
 
 function getAddressText(c) {
   return c.address || c.home_address || c.street_address || c.last_known_address || "";
+}
+
+function getStatusColor(status) {
+  const s = String(status || "").trim().toLowerCase();
+
+  if (s.includes("missed court")) return "red";
+  if (s.includes("in recovery")) return "red";
+  if (s.includes("missed payment")) return "orange";
+  if (s.includes("located")) return "blue";
+  if (s.includes("returned to custody")) return "green";
+  if (s.includes("closed")) return "green";
+  if (s.includes("open")) return "blue";
+
+  return "gray";
+}
+
+function buildStatusOptions(currentStatus) {
+  const seen = new Set();
+  const list = [];
+  const current = String(currentStatus || "").trim();
+
+  if (current) {
+    list.push(current);
+    seen.add(current.toLowerCase());
+  }
+
+  STATUS_OPTIONS.forEach(status => {
+    const key = status.toLowerCase();
+    if (!seen.has(key)) {
+      list.push(status);
+      seen.add(key);
+    }
+  });
+
+  return list.map(status => `<option value="${esc(status)}"${status === current ? " selected" : ""}>${esc(status)}</option>`).join("");
 }
 
 function buildTimeline(notes, tasks, alerts, events) {
@@ -436,6 +503,7 @@ function renderCases() {
     const status = getStatusText(c);
     const phone = getPhoneText(c);
     const address = getAddressText(c);
+    const statusColor = getStatusColor(status);
 
     const card = document.createElement("div");
     card.className = "card";
@@ -446,8 +514,11 @@ function renderCases() {
         <div class="cardHeaderTop">
           <div>
             <div class="name">${esc(name)}</div>
-            <div class="subline">${esc(status || "No status")} ${phone ? "• " + esc(phone) : ""}</div>
-            <div class="pillbar" id="summary-alerts-${esc(c.id)}"></div>
+            <div class="subline" id="header-subline-${esc(c.id)}">${esc(status || "No status")}${phone ? " • " + esc(phone) : ""}</div>
+            <div class="pillbar">
+              <span class="pill ${statusColor}" id="status-pill-${esc(c.id)}">${esc(status || "No status")}</span>
+              <span id="summary-alerts-${esc(c.id)}"></span>
+            </div>
           </div>
           <div class="caret">⌄</div>
         </div>
@@ -457,7 +528,7 @@ function renderCases() {
         <div class="metaGrid">
           <div class="field">
             <div class="k">Status</div>
-            <div class="v">${esc(status || "—")}</div>
+            <div class="v" id="status-value-${esc(c.id)}">${esc(status || "—")}</div>
           </div>
           <div class="field">
             <div class="k">Phone</div>
@@ -471,6 +542,20 @@ function renderCases() {
             <div class="k">Defendant ID</div>
             <div class="v">${esc(c.id)}</div>
           </div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Status Update</div>
+          <div class="statusSummary">
+            <span class="pill ${statusColor}" id="status-summary-${esc(c.id)}">${esc(status || "No status")}</span>
+          </div>
+          <div class="statusRow">
+            <select class="select" id="status-select-${esc(c.id)}">
+              ${buildStatusOptions(status)}
+            </select>
+            <button class="btn blue" id="status-save-${esc(c.id)}" onclick="updateCaseStatus('${esc(c.id)}')">Save Status</button>
+          </div>
+          <div class="small" id="status-msg-${esc(c.id)}"></div>
         </div>
 
         <div class="section">
@@ -497,7 +582,7 @@ function renderCases() {
           </div>
         </div>
 
-        <div class="section">
+        <div class="section" id="tasks-section-${esc(c.id)}">
           <div class="sectionTitle">Add Task</div>
           <div class="inputRow">
             <input class="input" id="task-input-${esc(c.id)}" type="text" placeholder="New task..." />
@@ -556,10 +641,51 @@ async function loadCases() {
   }
 }
 
+function updateStatusUi(defendantId, status) {
+  const caseRow = CASES.find(c => String(c.id) === String(defendantId));
+  const phone = caseRow ? getPhoneText(caseRow) : "";
+  const cleanStatus = status || "";
+  const statusColor = getStatusColor(cleanStatus);
+
+  if (caseRow) {
+    caseRow.status = cleanStatus;
+  }
+
+  const headerSubline = document.getElementById(`header-subline-${defendantId}`);
+  const statusValue = document.getElementById(`status-value-${defendantId}`);
+  const statusPill = document.getElementById(`status-pill-${defendantId}`);
+  const statusSummary = document.getElementById(`status-summary-${defendantId}`);
+  const statusSelect = document.getElementById(`status-select-${defendantId}`);
+
+  if (headerSubline) {
+    headerSubline.textContent = `${cleanStatus || "No status"}${phone ? " • " + phone : ""}`;
+  }
+
+  if (statusValue) {
+    statusValue.textContent = cleanStatus || "—";
+  }
+
+  if (statusPill) {
+    statusPill.className = `pill ${statusColor}`;
+    statusPill.textContent = cleanStatus || "No status";
+  }
+
+  if (statusSummary) {
+    statusSummary.className = `pill ${statusColor}`;
+    statusSummary.textContent = cleanStatus || "No status";
+  }
+
+  if (statusSelect) {
+    statusSelect.innerHTML = buildStatusOptions(cleanStatus);
+    statusSelect.value = cleanStatus;
+  }
+}
+
 async function loadCaseDetails(defendantId) {
   const timelineEl = document.getElementById(`timeline-${defendantId}`);
   const summaryAlertsEl = document.getElementById(`summary-alerts-${defendantId}`);
   const detailStatusEl = document.getElementById(`detail-status-${defendantId}`);
+  const tasksSection = document.getElementById(`tasks-section-${defendantId}`);
 
   if (!timelineEl) return;
 
@@ -604,9 +730,28 @@ async function loadCaseDetails(defendantId) {
       `).join("");
     }
 
+    if (tasksSection) {
+      const tasksHtml = tasks.map(t => `
+        <div class="task">
+          <div class="taskTitle ${t.completed ? "taskDone" : ""}">${esc((t.completed ? "✔ " : "") + (t.title || ""))}</div>
+          <button class="btn gray" onclick="toggleTask('${esc(t.id)}', ${t.completed ? "true" : "false"}, '${esc(defendantId)}')">
+            ${t.completed ? "Undo" : "Done"}
+          </button>
+        </div>
+      `).join("");
+
+      tasksSection.innerHTML = `
+        <div class="sectionTitle">Add Task</div>
+        ${tasksHtml}
+        <div class="inputRow">
+          <input class="input" id="task-input-${esc(defendantId)}" type="text" placeholder="New task..." />
+          <button class="btn orange" onclick="addTask('${esc(defendantId)}')">Add</button>
+        </div>
+      `;
+    }
+
     if (detailStatusEl) {
-      detailStatusEl.textContent =
-        `${notes.length} notes • ${tasks.length} tasks • ${alerts.length} alerts • ${events.length} events`;
+      detailStatusEl.textContent = `${notes.length} notes • ${tasks.length} tasks • ${alerts.length} alerts • ${events.length} events`;
     }
   } catch (err) {
     timelineEl.innerHTML = `<div class="empty">Error loading timeline</div>`;
@@ -684,99 +829,71 @@ async function logQuickEvent(defendantId, action) {
   } catch {}
 }
 
-document.getElementById("searchInput").addEventListener("input", renderCases);
+async function updateCaseStatus(defendantId) {
+  const select = document.getElementById(`status-select-${defendantId}`);
+  const btn = document.getElementById(`status-save-${defendantId}`);
+  const msg = document.getElementById(`status-msg-${defendantId}`);
+  const nextStatus = (select?.value || "").trim();
 
-document.addEventListener("click", function(e) {
-  const btn = e.target.closest("[data-task-id]");
-  if (!btn) return;
-});
+  if (!nextStatus) {
+    if (msg) {
+      msg.className = "small err";
+      msg.textContent = "Pick a status first.";
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+  }
+
+  if (msg) {
+    msg.className = "small";
+    msg.textContent = "";
+  }
+
+  try {
+    const res = await supabase
+      .from("bail_intakes")
+      .update({ status: nextStatus })
+      .eq("id", defendantId);
+
+    if (res.error) {
+      throw res.error;
+    }
+
+    updateStatusUi(defendantId, nextStatus);
+
+    if (msg) {
+      msg.className = "small ok";
+      msg.textContent = "Status updated.";
+    }
+  } catch (err) {
+    if (msg) {
+      msg.className = "small err";
+      msg.textContent = `Status save failed: ${err.message || err}`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Save Status";
+    }
+  }
+}
+
+document.getElementById("searchInput").addEventListener("input", renderCases);
 
 window.toggleTask = function(taskId, currentValue, defendantId) {
   return toggleTask(taskId, currentValue, defendantId);
 };
 
-const originalLoadCaseDetails = loadCaseDetails;
-loadCaseDetails = async function(defendantId) {
-  const timelineEl = document.getElementById(`timeline-${defendantId}`);
-  const summaryAlertsEl = document.getElementById(`summary-alerts-${defendantId}`);
-  const detailStatusEl = document.getElementById(`detail-status-${defendantId}`);
-
-  if (!timelineEl) return;
-
-  timelineEl.innerHTML = `<div class="empty">Loading timeline...</div>`;
-  if (summaryAlertsEl) summaryAlertsEl.innerHTML = "";
-  if (detailStatusEl) detailStatusEl.textContent = "";
-
-  try {
-    const [notesRes, tasksRes, alertsRes, eventsRes] = await Promise.all([
-      supabase.from("field_notes").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
-      supabase.from("tasks").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
-      supabase.from("alerts").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false }),
-      supabase.from("watchtower_events").select("*").eq("defendant_id", defendantId).order("created_at", { ascending: false })
-    ]);
-
-    const notes = notesRes.data || [];
-    const tasks = tasksRes.data || [];
-    const alerts = alertsRes.data || [];
-    const events = eventsRes.data || [];
-
-    if (summaryAlertsEl) {
-      summaryAlertsEl.innerHTML = alerts.slice(0, 3).map(a => {
-        const color = a.type || "red";
-        const text = a.message || a.alert_text || "Alert";
-        return `<span class="pill ${esc(color)}">${esc(text)}</span>`;
-      }).join("");
-    }
-
-    const timeline = buildTimeline(notes, tasks, alerts, events);
-
-    if (!timeline.length) {
-      timelineEl.innerHTML = `<div class="empty">No timeline activity yet</div>`;
-    } else {
-      timelineEl.innerHTML = timeline.map(item => `
-        <div class="timelineItem">
-          <div class="timelineTop">
-            <span class="timelineType pill ${esc(item.color)}">${esc(item.label)}</span>
-            <span class="timelineTime">${esc(fmtDate(item.created_at) || "")}</span>
-          </div>
-          <div class="timelineText">${esc(item.text || "—")}</div>
-        </div>
-      `).join("");
-    }
-
-    const body = document.getElementById(`body-${defendantId}`);
-    if (body) {
-      const tasksHtml = tasks.map(t => `
-        <div class="task">
-          <div class="taskTitle ${t.completed ? "taskDone" : ""}">${esc((t.completed ? "✔ " : "") + (t.title || ""))}</div>
-          <button class="btn gray" onclick="toggleTask('${esc(t.id)}', ${t.completed ? "true" : "false"}, '${esc(defendantId)}')">
-            ${t.completed ? "Undo" : "Done"}
-          </button>
-        </div>
-      `).join("");
-
-      const sections = body.querySelectorAll(".section");
-      if (sections[3]) {
-        const tasksSection = sections[3];
-        tasksSection.innerHTML = `
-          <div class="sectionTitle">Add Task</div>
-          ${tasksHtml}
-          <div class="inputRow">
-            <input class="input" id="task-input-${esc(defendantId)}" type="text" placeholder="New task..." />
-            <button class="btn orange" onclick="addTask('${esc(defendantId)}')">Add</button>
-          </div>
-        `;
-      }
-    }
-
-    if (detailStatusEl) {
-      detailStatusEl.textContent = `${notes.length} notes • ${tasks.length} tasks • ${alerts.length} alerts • ${events.length} events`;
-    }
-  } catch (err) {
-    timelineEl.innerHTML = `<div class="empty">Error loading timeline</div>`;
-    if (detailStatusEl) detailStatusEl.textContent = "Detail load failed";
-  }
-};
+window.toggleCard = toggleCard;
+window.addNote = addNote;
+window.addTask = addTask;
+window.addAlert = addAlert;
+window.logQuickEvent = logQuickEvent;
+window.updateCaseStatus = updateCaseStatus;
 
 loadCases();
 </script>
