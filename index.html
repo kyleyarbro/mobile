@@ -127,6 +127,7 @@
   .pill.orange{ background:#3e2b12; border-color:#7b4e0d; }
   .pill.green{ background:#143420; border-color:#1f6d3a; }
   .pill.blue{ background:#132c4f; border-color:#2758a5; }
+  .pill.gray{ background:#1f2937; border-color:#374151; }
 
   .cardBody{
     display:none;
@@ -205,6 +206,11 @@
   .btn.red{ background:var(--red); }
   .btn.gray{ background:#374151; }
 
+  .btn:disabled{
+    opacity:.7;
+    cursor:not-allowed;
+  }
+
   .input, .select{
     width:100%;
     padding:10px;
@@ -225,14 +231,6 @@
     display:grid;
     grid-template-columns:1fr auto;
     gap:8px;
-    align-items:center;
-  }
-
-  .statusSummary{
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
-    margin-bottom:8px;
   }
 
   .task{
@@ -386,6 +384,7 @@ function getAddressText(c) {
 function getStatusColor(status) {
   const s = String(status || "").trim().toLowerCase();
 
+  if (!s) return "gray";
   if (s.includes("missed court")) return "red";
   if (s.includes("in recovery")) return "red";
   if (s.includes("missed payment")) return "orange";
@@ -398,9 +397,9 @@ function getStatusColor(status) {
 }
 
 function buildStatusOptions(currentStatus) {
+  const current = String(currentStatus || "").trim();
   const seen = new Set();
   const list = [];
-  const current = String(currentStatus || "").trim();
 
   if (current) {
     list.push(current);
@@ -415,7 +414,10 @@ function buildStatusOptions(currentStatus) {
     }
   });
 
-  return list.map(status => `<option value="${esc(status)}"${status === current ? " selected" : ""}>${esc(status)}</option>`).join("");
+  return list.map(status => {
+    const selected = status === current ? " selected" : "";
+    return `<option value="${esc(status)}"${selected}>${esc(status)}</option>`;
+  }).join("");
 }
 
 function buildTimeline(notes, tasks, alerts, events) {
@@ -516,7 +518,7 @@ function renderCases() {
             <div class="name">${esc(name)}</div>
             <div class="subline" id="header-subline-${esc(c.id)}">${esc(status || "No status")}${phone ? " • " + esc(phone) : ""}</div>
             <div class="pillbar">
-              <span class="pill ${statusColor}" id="status-pill-${esc(c.id)}">${esc(status || "No status")}</span>
+              <span class="pill ${esc(statusColor)}" id="status-pill-${esc(c.id)}">${esc(status || "No status")}</span>
               <span id="summary-alerts-${esc(c.id)}"></span>
             </div>
           </div>
@@ -546,8 +548,8 @@ function renderCases() {
 
         <div class="section">
           <div class="sectionTitle">Status Update</div>
-          <div class="statusSummary">
-            <span class="pill ${statusColor}" id="status-summary-${esc(c.id)}">${esc(status || "No status")}</span>
+          <div class="pillbar" style="margin-top:0; margin-bottom:8px;">
+            <span class="pill ${esc(statusColor)}" id="status-summary-${esc(c.id)}">${esc(status || "No status")}</span>
           </div>
           <div class="statusRow">
             <select class="select" id="status-select-${esc(c.id)}">
@@ -643,9 +645,9 @@ async function loadCases() {
 
 function updateStatusUi(defendantId, status) {
   const caseRow = CASES.find(c => String(c.id) === String(defendantId));
+  const cleanStatus = String(status || "").trim();
+  const color = getStatusColor(cleanStatus);
   const phone = caseRow ? getPhoneText(caseRow) : "";
-  const cleanStatus = status || "";
-  const statusColor = getStatusColor(cleanStatus);
 
   if (caseRow) {
     caseRow.status = cleanStatus;
@@ -666,12 +668,12 @@ function updateStatusUi(defendantId, status) {
   }
 
   if (statusPill) {
-    statusPill.className = `pill ${statusColor}`;
+    statusPill.className = `pill ${color}`;
     statusPill.textContent = cleanStatus || "No status";
   }
 
   if (statusSummary) {
-    statusSummary.className = `pill ${statusColor}`;
+    statusSummary.className = `pill ${color}`;
     statusSummary.textContent = cleanStatus || "No status";
   }
 
@@ -884,13 +886,10 @@ async function updateCaseStatus(defendantId) {
 
 document.getElementById("searchInput").addEventListener("input", renderCases);
 
-window.toggleTask = function(taskId, currentValue, defendantId) {
-  return toggleTask(taskId, currentValue, defendantId);
-};
-
 window.toggleCard = toggleCard;
 window.addNote = addNote;
 window.addTask = addTask;
+window.toggleTask = toggleTask;
 window.addAlert = addAlert;
 window.logQuickEvent = logQuickEvent;
 window.updateCaseStatus = updateCaseStatus;
